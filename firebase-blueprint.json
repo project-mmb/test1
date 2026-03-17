@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "displayName": { "type": "string", "description": "User's display name" },
+        "photoURL": { "type": "string", "description": "User's profile picture URL" },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "User's role in the system" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "InventoryItem": {
+      "title": "Inventory Item",
+      "description": "Item available for purchase or rental",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the item" },
+        "description": { "type": "string", "description": "Detailed description of the item" },
+        "category": { "type": "string", "enum": ["thrift", "rental", "shoe"], "description": "Item category" },
+        "price": { "type": "number", "description": "Price of the item" },
+        "rentalPrice": { "type": "number", "description": "Rental price per day (if applicable)" },
+        "stock": { "type": "integer", "description": "Number of items in stock" },
+        "imageUrl": { "type": "string", "description": "URL of the item's image" }
+      },
+      "required": ["name", "category", "price", "stock"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Record of a purchase or rental",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "ID of the user who made the transaction" },
+        "itemId": { "type": "string", "description": "ID of the item involved" },
+        "type": { "type": "string", "enum": ["purchase", "rental"], "description": "Type of transaction" },
+        "status": { "type": "string", "enum": ["pending", "completed", "returned"], "description": "Current status of the transaction" },
+        "amount": { "type": "number", "description": "Total amount paid" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the transaction occurred" }
+      },
+      "required": ["userId", "itemId", "type", "status", "amount", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/inventory/{itemId}": {
+      "schema": "InventoryItem",
+      "description": "Available items for sale or rent"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Global transaction records"
+    },
+    "/users/{userId}/history/{transactionId}": {
+      "schema": "Transaction",
+      "description": "User-specific transaction history"
+    }
+  }
+}

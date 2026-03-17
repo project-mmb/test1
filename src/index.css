@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@300;400;500;600;700&family=Anton&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-brutal: "Anton", sans-serif;
+  --color-botswana-blue: #75AADB;
+
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  --animate-marquee: marquee 20s linear infinite;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-black antialiased;
+  }
+}
+
+.brutal-border {
+  @apply border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)];
+}
+
+.brutal-btn {
+  @apply px-6 py-3 bg-white border-2 border-black font-bold uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all;
+}
+
+.marquee-container {
+  @apply overflow-hidden whitespace-nowrap bg-black text-white py-4;
+}
+
+.marquee-content {
+  @apply inline-block animate-marquee;
+}
+
+.glass {
+  @apply bg-white/80 backdrop-blur-md border-b border-black/5;
+}

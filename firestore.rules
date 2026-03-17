@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - email: string (required, format: email) - User's email
+    //   - displayName: string (optional) - User's display name
+    //   - photoURL: string (optional) - User's profile picture URL
+    //   - role: string (required, enum: ['admin', 'user']) - User's role
+    //
+    // Collection: inventory
+    // Document ID: {itemId}
+    // Fields:
+    //   - name: string (required, size: 1-100) - Item name
+    //   - description: string (optional, size: 0-1000) - Item description
+    //   - category: string (required) - Category
+    //   - price: number (required, positive) - Purchase price
+    //   - size: string (optional) - Item size (S, M, L, XL, All)
+    //   - rentalPrice: number (optional, positive) - Rental price per day
+    //   - stock: int (required, non-negative) - Stock count
+    //   - imageUrl: string (optional, format: url) - Item image URL
+    //
+    // Collection: transactions
+    // Document ID: {transactionId}
+    // Fields:
+    //   - userId: string (required) - ID of the user
+    //   - itemId: string (required) - ID of the item
+    //   - itemName: string (required) - Name of the item
+    //   - type: string (required, enum: ['purchase', 'rental']) - Transaction type
+    //   - status: string (required, enum: ['pending', 'completed', 'returned']) - Status
+    //   - amount: number (required, positive) - Total amount
+    //   - timestamp: timestamp (required) - When it happened
+    //   - size: string (optional) - Size of the item
+    //   - duration: string (optional) - Duration for rentals
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "johansonsebudi@gmail.com" && request.auth.token.email_verified == true)); // Default admin
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role']) &&
+             hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'user'] &&
+             (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('photoURL' in data) || data.photoURL == null || isValidUrl(data.photoURL));
+    }
+
+    function isValidInventoryItem(data) {
+      let validCategories = ["Bundles", "Blazers", "Trousers", "Tops", "T-shirts", "Skirts", "Shoes", "Dresses", "Gowns", "Wedding Gowns", "Graduation Gowns"];
+      return hasRequiredFields(['name', 'category', 'price', 'stock']) &&
+             hasOnlyAllowedFields(['name', 'description', 'category', 'price', 'rentalPrice', 'stock', 'imageUrl', 'size']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 1000)) &&
+             data.category in validCategories &&
+             data.price is number && data.price >= 0 &&
+             (!('rentalPrice' in data) || data.rentalPrice == null || (data.rentalPrice is number && data.rentalPrice >= 0)) &&
+             data.stock is int && data.stock >= 0 &&
+             (!('imageUrl' in data) || data.imageUrl == null || isValidUrl(data.imageUrl)) &&
+             (!('size' in data) || data.size == null || data.size is string);
+    }
+
+    function isValidTransaction(data) {
+      return hasRequiredFields(['userId', 'itemId', 'itemName', 'type', 'status', 'amount', 'timestamp']) &&
+             hasOnlyAllowedFields(['userId', 'itemId', 'itemName', 'type', 'status', 'amount', 'timestamp', 'size', 'duration', 'quantity', 'deliveryAddress', 'phoneNumber', 'rentalPeriod']) &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.itemId is string && data.itemId.size() > 0 &&
+             data.itemName is string && data.itemName.size() > 0 &&
+             data.type in ['purchase', 'rental'] &&
+             data.status in ['pending', 'completed', 'returned', 'cancelled'] &&
+             data.amount is number && data.amount >= 0 &&
+             data.timestamp is timestamp &&
+             (!('size' in data) || data.size == null || data.size is string) &&
+             (!('duration' in data) || data.duration == null || data.duration is string) &&
+             (!('quantity' in data) || data.quantity is number) &&
+             (!('deliveryAddress' in data) || data.deliveryAddress is string) &&
+             (!('phoneNumber' in data) || data.phoneNumber is string) &&
+             (!('rentalPeriod' in data) || data.rentalPeriod == null || data.rentalPeriod is map);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || (request.resource.data.role == 'admin' && request.auth.token.email == "johansonsebudi@gmail.com"));
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+      allow delete: if isAdmin();
+
+      match /history/{transactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidTransaction(request.resource.data) && request.resource.data.userId == userId;
+        allow update: if isAdmin() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'cancelled' && resource.data.status == 'pending');
+        allow delete: if isAdmin() || (isOwner(userId) && resource.data.status == 'pending');
+      }
+    }
+
+    match /inventory/{itemId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidInventoryItem(request.resource.data);
+      allow update: if (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']) && request.resource.data.stock >= 0) || (isAdmin() && isValidInventoryItem(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidTransaction(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'cancelled' && resource.data.status == 'pending');
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid && resource.data.status == 'pending');
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
